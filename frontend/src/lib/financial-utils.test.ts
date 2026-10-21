@@ -61,10 +61,17 @@ describe("computeKPIs", () => {
 });
 
 describe("computeMonthlyData", () => {
+  it("keeps date-only movements in their calendar month", () => {
+    expect(computeMonthlyData(sampleMovements)).toEqual([
+      { month: "Jan 2024", income: 1000, outcome: 250, profitPercent: 75 },
+      { month: "Feb 2024", income: 500, outcome: 0, profitPercent: 100 },
+    ]);
+  });
+
   it("returns chronological year-month points with aggregated totals", () => {
     const unsortedCrossYearMovements: FinancialMovement[] = [
       {
-        create_date: "2026-01-08",
+        create_date: "2026-01-01",
         amount: 300,
         operation_type: "income",
         category: "sales",

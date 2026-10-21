@@ -5,16 +5,17 @@ import {
 } from "./financial-types";
 
 function toYearMonthKey(value: Date): string {
-  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}`;
+  return `${value.getUTCFullYear()}-${String(value.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
 function formatMonthYearLabel(yearMonthKey: string): string {
   const [yearText, monthText] = yearMonthKey.split("-");
   const year = Number(yearText);
   const month = Number(monthText) - 1;
-  return new Date(year, month, 1).toLocaleDateString("en-US", {
+  return new Date(Date.UTC(year, month, 1)).toLocaleDateString("en-US", {
     month: "short",
     year: "numeric",
+    timeZone: "UTC",
   });
 }
 

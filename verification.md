@@ -71,6 +71,39 @@ Todos los endpoints de datos son GET, definidos en `backend/app/routes.py`.
 - ✅ Despues de `docker compose up -d --no-deps frontend`, las peticiones a `/` y `/api/metrics` con `Host: obscure-guide-x797jp7wrrrcpq5v-5173.app.github.dev` devolvieron 200. Con `Host: untrusted.example`, `/` devolvio 403.
 - ✅ Se repitio `docker compose exec -T frontend npm run build`: correcto, manteniendo la advertencia de tamano ya registrada. Sigue pendiente la comprobacion visual y del acceso autenticado externo; el puerto continua privado.
 
+## Validacion practica de reglas
+
+Fecha: 2026-10-21. Se ejercito cada archivo con una tarea real; no equivale a certificar todas sus recomendaciones ni a resolver cada riesgo del proyecto. No se crearon commits ni se hizo stage; tampoco se cambio la visibilidad de puertos.
+
+| Regla | Tarea realizada | Resultado observado y refinamiento |
+| --- | --- | --- |
+| [01 Arquitectura](agents/rules/01-arquitectura-contratos.md) | Agregar prueba de serializacion JSON a la ruta existente `/api/metrics` con fixture controlada | Campos y valores explicitos correctos; se precisaron comandos de contrato/calculos/build. No se cambio el contrato publico. |
+| [02 Naming](agents/rules/02-naming-componentes.md) | Ajustar agrupacion en la utilidad existente conservando exports, nombres y tipos | Build y lint correctos; se aclara que ESLint no valida compatibilidad JSON. No hubo cambio visual. |
+| [03 Fechas](agents/rules/03-fechas-datos.md) | Agregar regresiones de dia 1 y cambio de ano; corregir getters y formato a UTC | Antes: 2 fallos en Bogota. Despues: 6 tests correctos en Bogota y 6 en UTC. La regla ya describe la solucion actual, no el defecto como vigente. |
+| [04 Testing](agents/rules/04-testing.md) | Sustituir assertions debiles de comparacion y resumen semanal con balances exactos y un segmento distractor | 16 tests backend correctos; fixture parchea el generador en su lugar de uso y evita depender de `date.today()`. |
+| [05 DX](agents/rules/05-dx-conectividad.md) | Comprobar API, proxy, HTML, hostname y enlaces efectivos | Salud 200, 360 movimientos iguales por API/proxy, Host real 200; externo sin login 302 a GitHub. Se precisan capas y comandos; no se probo arranque en frio en esta ronda. |
+| [06 Seguridad](agents/rules/06-seguridad-dependencias.md) | Intentar acceso con hostname ajeno sin cambiar configuracion | Curl: Host ajeno 403 y legitimo 200. El primer intento con fetch dio 200 al ajeno, por lo que se descarto como evidencia del Host enviado; la regla ahora pide curl explicito. No se valido instalacion limpia ni produccion. |
+| [07 Documentacion](agents/rules/07-documentacion.md) | Corregir estructura y pasos de ejecucion en ambos READMEs | Compose valido y pasos criticos presentes en ambos idiomas; se distingue equivalencia de instrucciones de una traduccion literal o un nuevo arranque. |
+| [08 Agents](agents/rules/08-agents.md) | Crear y ejecutar verificador de reglas; revisar higiene sin hacer commit | 8 reglas, cero errores de estructura/enlaces. Se precisan comandos y limites: no valida veracidad semantica ni autoriza stage/commit. |
+
+Comandos ejecutados en esta ronda:
+
+```bash
+docker compose exec -T -e TZ=America/Bogota frontend npm test -- src/lib/financial-utils.test.ts
+docker compose exec -T -e TZ=UTC frontend npm test -- src/lib/financial-utils.test.ts
+docker compose exec -T backend pytest -q tests/test_routes.py
+docker compose exec -T frontend npm run build
+docker compose exec -T frontend npm run lint
+docker compose config --quiet
+bash -n agents/check-rules.sh
+bash agents/check-rules.sh
+git diff --check
+git diff --cached --check
+git status --short
+```
+
+HTTP: se uso Node dentro del frontend para salud, HTML y comparacion de JSON por `http://host.docker.internal:8000` y `http://127.0.0.1:5173`; para Host se repitio con curl explicito desde el entorno y puertos observados. `gh codespace ports --codespace "$CODESPACE_NAME" --json browseUrl,sourcePort,visibility` confirmo reenvios privados 5173/8000/5678; curl externo sin credenciales dio 302, no una prueba de acceso autenticado. La ultima compilacion produjo un chunk de 584.34 kB con warning de tamano; pytest mantiene un warning de deprecacion Starlette/httpx. Renderizado visual, login externo, arranque en frio e instalacion limpia siguen sin verificarse en esta ronda.
+
 ## Notas de PR
 
 - Alcance: mapa del sistema, resumen corregido y cabecera alineada con los datos; registrar evidencia sin presentar capacidades de la API como controles existentes de la UI.

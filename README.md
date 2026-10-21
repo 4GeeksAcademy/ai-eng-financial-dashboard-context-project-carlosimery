@@ -28,26 +28,38 @@ _Financial metrics dashboard with a React + TypeScript frontend and a FastAPI ba
 ## Expected agents directory structure
 
 ```text
-./.agents
-└─ /rules
-   └─ <rule-name>.md
-└─ /skills
-   └─ /<skill-name>
-      └─ /SKILL.md
+agents/
+  rules/
+    01-arquitectura-contratos.md
+    ...
 ```
+
+[AGENTS.md](AGENTS.md) loads rules from `agents/rules` according to their scope. Legacy `.agents/rules`, optional `.agents/skills` and `memory-bank` are consulted if they exist.
 
 ## How to run locally
 
 ```bash
-docker compose up --build
+docker compose up --build -d
+docker compose ps
 ```
 
-The frontend uses the Vite proxy for `/api` by default, so no extra environment variables are required in local development or Codespaces.
-If you need to target a different backend origin, copy `frontend/.env.example` to `.env` and set `VITE_API_BASE_URL`.
+With Docker Compose, Vite forwards `/api` to the backend through `host.docker.internal:8000`; Compose supplies the host alias and Codespaces variables. Running Vite outside Docker requires an accessible backend origin or an adapted proxy.
+To target another backend origin, copy `frontend/.env.example` to `frontend/.env` and set `VITE_API_BASE_URL` without appending `/api`. Restart Vite after changing this file.
 
+When Docker runs on your local machine and the configured ports are available:
 - Frontend: http://localhost:5173
 - Backend: http://localhost:8000
 - API documentation: http://localhost:8000/docs
+
+In Codespaces, obtain the current links instead of assuming localhost:
+
+```bash
+gh codespace ports --codespace "$CODESPACE_NAME"
+```
+
+Open port 5173 from VS Code's Ports view. Private ports require an authorized GitHub session; an internal HTTP 200 does not verify external access. The backend owns `/health` and `/docs`; Vite only proxies `/api`. Port 5678 is a debugger, not an HTTP page.
+
+Inspect logs with `docker compose logs --tail=50 frontend backend`; stop services with `docker compose down` (without `-v`). These are development servers, not a production deployment. See [verification.md](verification.md) for dated checks and their limits.
 
 ---
 

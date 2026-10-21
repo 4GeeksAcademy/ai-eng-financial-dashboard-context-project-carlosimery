@@ -3,7 +3,10 @@
 Agents working on this project **must**:
 
 - Look for **work instructions and rules** in the directory:  
-  `./.agents/rules`
+  `./agents/rules`
+
+  Read these files and apply the rules whose **Alcance** matches the task.
+  Also check `./.agents/rules` if that legacy directory exists.
 
 - Look for available **agent skills** in the directory:  
   `./.agents/skills`

@@ -1,12 +1,49 @@
 from datetime import date
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.routes import filter_movements_by_date, generate_mock_movements
+from app.routes import FinancialMovement, filter_movements_by_date, generate_mock_movements
 
 
 client = TestClient(app)
+
+
+@pytest.fixture
+def fixed_movements(monkeypatch):
+    movements = [
+        FinancialMovement(
+            create_date=create_date,
+            amount=amount,
+            operation_type=operation_type,
+            category=category,
+            business_type=business_type,
+        )
+        for create_date, amount, operation_type, category, business_type in [
+            ("2025-02-27", 100, "income", "sales", "B2C"),
+            ("2025-02-28", 20, "outcome", "operational", "B2C"),
+            ("2025-03-01", 200, "income", "sales", "B2C"),
+            ("2025-03-01", 900, "income", "sales", "B2B"),
+            ("2025-03-02", 40, "outcome", "operational", "B2C"),
+        ]
+    ]
+    monkeypatch.setattr("app.routes.generate_mock_movements", lambda seed=None: movements)
+    return movements
+
+
+def test_metrics_serializes_movement_contract(fixed_movements):
+    response = client.get("/api/metrics")
+
+    assert response.status_code == 200
+    assert len(response.json()) == len(fixed_movements)
+    assert response.json()[0] == {
+        "create_date": "2025-02-27",
+        "amount": 100.0,
+        "operation_type": "income",
+        "category": "sales",
+        "business_type": "B2C",
+    }
 
 
 def test_generate_mock_movements_returns_full_year_sorted_data():
@@ -130,15 +167,16 @@ def test_metrics_summary_by_month_returns_balances():
     assert all(item["outcome"] >= 0 for item in payload)
 
 
-def test_metrics_summary_by_week_honors_business_type_filter():
+def test_metrics_summary_by_week_honors_business_type_filter(fixed_movements):
     response = client.get(
         "/api/metrics/summary",
         params={"group_by": "week", "business_type": "B2C"},
     )
 
     assert response.status_code == 200
-    payload = response.json()
-    assert payload
+    assert response.json() == [
+        {"period": "2025-W09", "income": 300.0, "outcome": 60.0, "net": 240.0}
+    ]
 
 
 def test_top_categories_returns_limited_sorted_categories():
@@ -154,19 +192,22 @@ def test_top_categories_returns_limited_sorted_categories():
     assert all(item["operation_type"] == "outcome" for item in payload)
 
 
-def test_metrics_comparison_returns_delta_fields():
+def test_metrics_comparison_returns_expected_balances(fixed_movements):
     response = client.get(
         "/api/metrics/comparison",
-        params={"start_date": "2025-03-01", "end_date": "2025-03-31"},
+        params={
+            "start_date": "2025-03-01",
+            "end_date": "2025-03-02",
+            "business_type": "B2C",
+        },
     )
 
     assert response.status_code == 200
-    payload = response.json()
-    assert set(payload.keys()) == {
-        "current_period",
-        "previous_period",
-        "delta_abs",
-        "delta_pct",
+    assert response.json() == {
+        "current_period": 160.0,
+        "previous_period": 80.0,
+        "delta_abs": 80.0,
+        "delta_pct": 100.0,
     }
 
 
