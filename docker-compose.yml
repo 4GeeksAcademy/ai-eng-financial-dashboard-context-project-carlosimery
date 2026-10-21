@@ -5,6 +5,11 @@ services:
       dockerfile: Dockerfile
     ports:
       - "5173:5173"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      CODESPACE_NAME: ${CODESPACE_NAME:-}
+      GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN: ${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-app.github.dev}
     volumes:
       - ./frontend:/app
       - /app/node_modules

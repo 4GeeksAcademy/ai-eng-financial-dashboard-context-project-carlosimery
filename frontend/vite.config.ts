@@ -8,9 +8,14 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     host: "0.0.0.0",
+    allowedHosts: process.env.CODESPACE_NAME
+      ? [
+          `${process.env.CODESPACE_NAME}-5173.${process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN ?? "app.github.dev"}`,
+        ]
+      : [],
     proxy: {
       "/api": {
-        target: "http://backend:8000",
+        target: "http://host.docker.internal:8000",
         changeOrigin: true,
       },
     },
