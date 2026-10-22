@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { KPIRow } from "@/components/dashboard/kpi-row";
 import { IncomeOutcomeChart } from "@/components/dashboard/income-outcome-chart";
+import { AnomalyAlertsTable } from "@/components/dashboard/anomaly-alerts-table";
 import { ProfitPercentChart } from "@/components/dashboard/profit-percent-chart";
 import {
   type FinancialMovement,
+  type MetricsAlert,
   type KPIMetrics,
   type MetricsFacets,
   type MonthlyDataPoint,
@@ -38,6 +40,23 @@ async function fetchMetricsFacets(): Promise<MetricsFacets> {
   return response.json();
 }
 
+async function fetchAlerts(
+  threshold: string,
+  startDate?: string,
+  endDate?: string,
+): Promise<MetricsAlert[]> {
+  const params = new URLSearchParams({ threshold, group_by: "month" });
+  if (startDate) params.set("start_date", startDate);
+  if (endDate) params.set("end_date", endDate);
+  const response = await fetch(
+    `${API_BASE_URL}/api/metrics/alerts?${params.toString()}`,
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to fetch alerts: ${response.status}`);
+  }
+  return response.json();
+}
+
 function App() {
   const [metrics, setMetrics] = useState<KPIMetrics | null>(null);
   const [monthlyData, setMonthlyData] = useState<MonthlyDataPoint[]>([]);
@@ -47,8 +66,18 @@ function App() {
     null,
   );
   const [rangeError, setRangeError] = useState(false);
+  const [alertThreshold, setAlertThreshold] = useState("0.3");
+  const [alerts, setAlerts] = useState<MetricsAlert[]>([]);
+  const [alertsLoading, setAlertsLoading] = useState(true);
+  const [alertsError, setAlertsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const numericAlertThreshold = Number(alertThreshold);
+  const alertThresholdIsValid =
+    alertThreshold.trim() !== "" &&
+    Number.isFinite(numericAlertThreshold) &&
+    numericAlertThreshold >= 0.01 &&
+    numericAlertThreshold <= 1;
 
   useEffect(() => {
     fetchMetricsFacets()
@@ -80,6 +109,28 @@ function App() {
     };
   }, [startDate, endDate]);
 
+  useEffect(() => {
+    if (!alertThresholdIsValid) return;
+
+    let isCurrentRequest = true;
+    fetchAlerts(alertThreshold, startDate || undefined, endDate || undefined)
+      .then((results) => {
+        if (isCurrentRequest) setAlerts(results);
+      })
+      .catch(() => {
+        if (isCurrentRequest) {
+          setAlertsError("No se pudieron cargar las alertas.");
+        }
+      })
+      .finally(() => {
+        if (isCurrentRequest) setAlertsLoading(false);
+      });
+
+    return () => {
+      isCurrentRequest = false;
+    };
+  }, [alertThreshold, alertThresholdIsValid, startDate, endDate]);
+
   const period = loading
     ? "Loading..."
     : monthlyData.length > 0
@@ -108,6 +159,8 @@ function App() {
                   onChange={(event) => {
                     setLoading(true);
                     setError(null);
+                    setAlertsLoading(true);
+                    setAlertsError(null);
                     setStartDate(event.target.value);
                   }}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 sm:w-48"
@@ -124,6 +177,8 @@ function App() {
                   onChange={(event) => {
                     setLoading(true);
                     setError(null);
+                    setAlertsLoading(true);
+                    setAlertsError(null);
                     setEndDate(event.target.value);
                   }}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 sm:w-48"
@@ -134,6 +189,8 @@ function App() {
                 onClick={() => {
                   setLoading(true);
                   setError(null);
+                  setAlertsLoading(true);
+                  setAlertsError(null);
                   setStartDate("");
                   setEndDate("");
                 }}
@@ -169,6 +226,18 @@ function App() {
             <IncomeOutcomeChart data={monthlyData} loading={loading} />
             <ProfitPercentChart data={monthlyData} loading={loading} />
           </section>
+
+          <AnomalyAlertsTable
+            threshold={alertThreshold}
+            onThresholdChange={(value) => {
+              setAlertsLoading(true);
+              setAlertsError(null);
+              setAlertThreshold(value);
+            }}
+            alerts={alerts}
+            loading={alertsLoading}
+            error={alertsError}
+          />
         </div>
       </div>
     </main>
