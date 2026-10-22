@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
+import { BusinessRevenueComparison } from "@/components/dashboard/business-revenue-comparison";
 import { KPIRow } from "@/components/dashboard/kpi-row";
 import { IncomeOutcomeChart } from "@/components/dashboard/income-outcome-chart";
 import { AnomalyAlertsTable } from "@/components/dashboard/anomaly-alerts-table";
@@ -12,6 +13,7 @@ import {
   type MonthlyDataPoint,
 } from "@/lib/financial-types";
 import { computeKPIs, computeMonthlyData } from "@/lib/financial-utils";
+import type { DateRangeFilter } from "../specs/param-types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -62,6 +64,7 @@ function App() {
   const [monthlyData, setMonthlyData] = useState<MonthlyDataPoint[]>([]);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [activeView, setActiveView] = useState<"overview" | "revenue-comparison">("overview");
   const [availableRange, setAvailableRange] = useState<MetricsFacets | null>(
     null,
   );
@@ -136,12 +139,43 @@ function App() {
     : monthlyData.length > 0
       ? `${monthlyData[0].month} - ${monthlyData[monthlyData.length - 1].month}`
       : "No data";
+  const dateRange: DateRangeFilter = {
+    ...(startDate ? { start_date: startDate } : {}),
+    ...(endDate ? { end_date: endDate } : {}),
+  };
 
   return (
     <main className="dark min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="flex flex-col gap-8">
           <DashboardHeader period={period} />
+
+          <nav aria-label="Dashboard pages" className="flex gap-5 border-b border-border">
+            <button
+              type="button"
+              aria-current={activeView === "overview" ? "page" : undefined}
+              onClick={() => setActiveView("overview")}
+              className={`border-b-2 px-1 pb-2 text-sm font-medium ${
+                activeView === "overview"
+                  ? "border-primary text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Overview
+            </button>
+            <button
+              type="button"
+              aria-current={activeView === "revenue-comparison" ? "page" : undefined}
+              onClick={() => setActiveView("revenue-comparison")}
+              className={`border-b-2 px-1 pb-2 text-sm font-medium ${
+                activeView === "revenue-comparison"
+                  ? "border-primary text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Revenue comparison
+            </button>
+          </nav>
 
           <section
             aria-label="Date filters"
@@ -209,35 +243,45 @@ function App() {
             </p>
           </section>
 
-          {error ? (
-            <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive-foreground">
-              {error}
-            </div>
-          ) : null}
+          {activeView === "overview" ? (
+            <>
+              {error ? (
+                <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive-foreground">
+                  {error}
+                </div>
+              ) : null}
 
-          <section aria-label="Key performance indicators">
-            <KPIRow metrics={metrics} loading={loading} />
-          </section>
+              <section aria-label="Key performance indicators">
+                <KPIRow metrics={metrics} loading={loading} />
+              </section>
 
-          <section
-            aria-label="Financial charts"
-            className="grid grid-cols-1 gap-4 xl:grid-cols-2"
-          >
-            <IncomeOutcomeChart data={monthlyData} loading={loading} />
-            <ProfitPercentChart data={monthlyData} loading={loading} />
-          </section>
+              <section
+                aria-label="Financial charts"
+                className="grid grid-cols-1 gap-4 xl:grid-cols-2"
+              >
+                <IncomeOutcomeChart data={monthlyData} loading={loading} />
+                <ProfitPercentChart data={monthlyData} loading={loading} />
+              </section>
 
-          <AnomalyAlertsTable
-            threshold={alertThreshold}
-            onThresholdChange={(value) => {
-              setAlertsLoading(true);
-              setAlertsError(null);
-              setAlertThreshold(value);
-            }}
-            alerts={alerts}
-            loading={alertsLoading}
-            error={alertsError}
-          />
+              <AnomalyAlertsTable
+                threshold={alertThreshold}
+                onThresholdChange={(value) => {
+                  setAlertsLoading(true);
+                  setAlertsError(null);
+                  setAlertThreshold(value);
+                }}
+                alerts={alerts}
+                loading={alertsLoading}
+                error={alertsError}
+              />
+            </>
+          ) : (
+            <BusinessRevenueComparison
+              dateRange={dateRange}
+              facets={availableRange}
+              facetsError={rangeError}
+            />
+          )}
         </div>
       </div>
     </main>
