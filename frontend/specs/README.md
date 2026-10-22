@@ -64,30 +64,34 @@ La API define `baseline_average` como el promedio de todos los períodos anterio
 
 ## 3. Comparación de categorías B2B vs. B2C
 
-Estado: la API y los tipos están disponibles; la tabla comparativa del frontend está prevista, todavía no integrada.
+Estado: implementada en la vista “Revenue comparison” del dashboard; ver [components.md](components.md) para props y estados de renderizado.
 
 ### Endpoint y tipos
 
-| Endpoint | Tipo de petición | Tipo de respuesta |
-| --- | --- | --- |
-| `GET /api/metrics/categories/top` | `TopCategoriesParams` | `TopCategoriesResponse`, un arreglo de `CategoryEntry`. |
+| Endpoint | Uso | Tipo de petición | Tipo de respuesta |
+| --- | --- | --- | --- |
+| `GET /api/metrics/facets` | Catálogo global de categorías y segmentos, cargado desde `App`. | Ninguno | `FacetsResponse`; `categories` no se separa por grupo. |
+| `GET /api/metrics/categories/top` | Una petición por segmento para categorías de ingresos (máximo cinco). | `TopCategoriesParams` con `operation_type=income`, `limit=5` y `business_type=B2B` o `B2C`. | `TopCategoriesResponse`, arreglo de `CategoryEntry`. |
+| `GET /api/metrics/b2b` y `GET /api/metrics/b2c` | Obtener todos los movimientos de ingreso del segmento para el total y denominador de porcentajes. | `DateRangeFilter` más `operation_type: "income"`; el path selecciona el segmento. | `FinancialMovement[]` desde `financial-types.ts`. |
 
-La comparación requiere dos peticiones: una con `business_type=B2B` y otra con `business_type=B2C`, compartiendo operación, límite y fechas. La respuesta es un arreglo plano y no incluye `business_type` en cada entrada; el segmento se conserva en la petición que originó cada arreglo.
+La vista realiza cuatro solicitudes de datos (dos top y dos de movimientos), además de usar las facetas ya cargadas. `CategoryEntry` no incluye `business_type`; el segmento se conserva por la petición que originó cada arreglo. Las facetas son globales y no contienen una lista distinta por segmento; cada endpoint top devuelve como máximo cinco entradas para el segmento solicitado.
 
 ### Parámetros y restricciones
 
 | Parámetro | Validez y restricciones |
 | --- | --- |
-| `business_type` | Opcional en la API; valores `B2B` o `B2C`. Obligatorio en cada una de las dos peticiones de comparación. Si se omite, el endpoint mezcla ambos segmentos. |
-| `operation_type` | Opcional; `income` o `outcome`; default `outcome`. Si el brief no añade un control, usar el default. |
-| `limit` | Opcional; entero entre `1` y `20`; default `5`. Si el brief no añade un control, usar el default. |
+| `business_type` en `/categories/top` | Opcional en la API; valores `B2B` o `B2C`. La comparación envía uno en cada petición. Si se omite, el endpoint mezcla segmentos. |
+| `operation_type` para `/categories/top` | Opcional; `income` o `outcome`; default `outcome`. La comparación envía `income`. |
+| `limit` | Opcional; entero entre `1` y `20`; default `5`. La comparación envía `5`; la API puede devolver menos entradas. |
 | `start_date`, `end_date` | Opcionales, `YYYY-MM-DD`, inclusivos; deben ser los mismos en ambas peticiones y coincidir con el rango activo del dashboard. |
+| `operation_type` para `/b2b` y `/b2c` | Opcional; `income` o `outcome`. La vista envía `income`; el segmento lo selecciona el path, no `business_type`. |
 
-Cada `CategoryEntry` devuelve `category`, `operation_type` y `total_amount`. Las categorías válidas son `suppliers`, `sales`, `operational`, `administrative` y `others`.
+Cada `CategoryEntry` devuelve `category`, `operation_type` y `total_amount`; los segmentos se renderizan en tablas independientes, no alineadas fila a fila. Las categorías válidas son `suppliers`, `sales`, `operational`, `administrative` y `others`. El porcentaje usa `total_amount / totalIncome * 100`; `totalIncome` suma todos los movimientos `income` del segmento, no solo los top-5. Si el total es cero, la UI muestra `0.0%`.
 
 ### Casos límite
 
-1. Las listas B2B y B2C tienen orden distinto: alinear las filas por `category`, nunca por índice ni ranking.
-2. Una categoría falta en uno de los resultados top: mostrar `—` para ese segmento, no `0`; la categoría puede haber quedado fuera de `limit` y la respuesta no distingue ese caso de ausencia de movimientos.
-3. Un segmento devuelve `[]`: conservar ambas columnas; mostrar `—` para sus categorías. Si ambos devuelven `[]`, mostrar un estado vacío explícito.
-4. Falla una de las dos peticiones: mostrar error y no presentar una comparación parcial como completa.
+1. Un top devuelve menos de cinco entradas: mostrar solo las filas recibidas, sin rellenar categorías artificiales; la otra tabla se renderiza independientemente.
+2. Un top devuelve `[]`: ese panel muestra “No income categories available.”; el otro panel conserva sus filas.
+3. Ambos totales son cero: conservar el gráfico y mostrar “No income data available to compare.”; si hay filas, la participación calculada es `0.0%`.
+4. Las categorías u órdenes difieren entre segmentos: cada tabla conserva el orden de su respuesta; la implementación no alinea filas ni añade placeholders.
+5. Falla cualquiera de las cuatro solicitudes: mostrar error de comparación y no presentar el resultado parcial como completo.

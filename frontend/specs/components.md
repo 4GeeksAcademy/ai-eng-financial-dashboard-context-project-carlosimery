@@ -4,38 +4,37 @@
 
 - [param-types.ts](param-types.ts) define parámetros de solicitud; [api-types.ts](api-types.ts) define las respuestas de API.
 - `BusinessType`, `OperationType` y `Category` se reutilizan desde [financial-types.ts](../src/lib/financial-types.ts); sus literales no se redefinen en props.
-- Los componentes reciben objetos con esos tipos, en vez de duplicar campos de query en props independientes.
-- El rango de fechas es compartido. Un input vacío se normaliza como propiedad omitida, nunca como `""` en la query string.
+- `App` es el propietario del rango compartido. Construye `DateRangeFilter` omitiendo campos vacíos y lo pasa a las solicitudes de métricas, alertas y comparación; nunca serializa `""` como fecha.
 - Las respuestas-array se conservan como arreglos: `AlertsResponse` y `TopCategoriesResponse` no tienen un objeto envolvente.
 
 ## Funcionalidad 1: rango de fechas
 
-### `DateRangeFilterControls`
+### `App` y componentes de overview
 
-Estado: los inputs están actualmente inline en `App`; este es el contrato de props para esa sección/componente.
+Los controles de fecha están inline en `App`, que no recibe props. El mismo rango se aplica al overview y a la vista de comparación.
 
-| Prop | Tipo | Contrato |
+| Componente | Props reales | Renderizado condicional |
 | --- | --- | --- |
-| `value` | `DateRangeFilter` | Selección vigente. `start_date` y `end_date` son opcionales y usan `YYYY-MM-DD`. |
-| `availableRange` | `Pick<FacetsResponse, "min_date" \| "max_date"> \| null` | Límites de calendario recibidos de `/api/metrics/facets`; `null` mientras se cargan o si no están disponibles. |
-| `onChange` | `(value: DateRangeFilter) => void` | Emite el rango actualizado, omitiendo la propiedad cuyo input queda vacío. |
-| `disabled?` | `boolean` | Deshabilita ambos inputs mientras los límites no estén disponibles. |
+| `App` | Sin props. Mantiene `startDate`, `endDate`, `availableRange`, `rangeError` y `activeView`. | Los inputs se deshabilitan hasta recibir facetas; el texto de referencia muestra carga, error o límites. El rango y la navegación permanecen visibles. Renderiza overview o comparación según `activeView`. |
+| `KPIRow` | `metrics: KPIMetrics \| null`; `loading?: boolean` | Conserva tarjetas durante la carga; muestra valores cuando recibe métricas calculadas desde movimientos filtrados. |
+| `IncomeOutcomeChart` | `data: MonthlyDataPoint[]`; `loading?: boolean` | Skeleton mientras carga; gráfico si hay importes, o “No data available to display” si no. |
+| `ProfitPercentChart` | `data: MonthlyDataPoint[]`; `loading?: boolean` | Skeleton mientras carga; gráfico si algún margen es distinto de cero, o “No data available to display” en caso contrario. |
 
-Las fechas se seleccionan dentro de `availableRange`; `start_date` no puede superar `end_date`. Los límites son inclusivos en los endpoints. El propietario del estado comparte `value` con las solicitudes de movimientos, alertas y categorías; no mantiene un rango distinto por tabla.
+Las fechas elegibles se limitan a `FacetsResponse.min_date..max_date`; `start_date` no puede superar `end_date`. Los endpoints aplican límites inclusivos. Con un input vacío se omite solo su parámetro; con ambos vacíos se omiten ambos.
 
 ## Funcionalidad 2: alertas de anomalías
 
 ### `AnomalyAlertsTable`
 
-Estado: existe en [anomaly-alerts-table.tsx](../src/components/dashboard/anomaly-alerts-table.tsx). El contrato siguiente alinea sus props públicas con los tipos de query y respuesta. El control puede conservar localmente un borrador de texto; solo el valor numérico validado forma parte de `AlertsParams`.
+Existe en [anomaly-alerts-table.tsx](../src/components/dashboard/anomaly-alerts-table.tsx). `MetricsAlert` de `financial-types.ts` es estructuralmente equivalente a `AlertEntry`.
 
-| Prop | Tipo | Contrato |
+| Prop real | Tipo | Renderizado condicional |
 | --- | --- | --- |
-| `params` | `AlertsParams` | Parámetros vigentes para `/api/metrics/alerts`; incluye el rango de fechas compartido y el ratio numérico. |
-| `onParamsChange` | `(params: AlertsParams) => void` | Emite cambios válidos del umbral sin descartar las fechas ni otros parámetros vigentes. |
-| `data` | `AlertsResponse` | Filas devueltas por el endpoint. |
-| `loading` | `boolean` | Mientras sea `true`, muestra estado de carga en el área de tabla. |
-| `error` | `string \| null` | Error de consulta; no se debe presentar como lista vacía. |
+| `threshold` | `string` | Borrador del input. Si es inválido muestra validación y no la tabla; si es válido permite sus estados. |
+| `onThresholdChange` | `(value: string) => void` | Notifica el borrador; `App` solo consulta con el ratio validado `0.01–1.0`. |
+| `alerts` | `MetricsAlert[]` (`AlertsResponse`) | Filas recibidas. Un arreglo vacío muestra mensaje explícito. |
+| `loading` | `boolean` | Muestra “Loading alerts...” dentro de la tabla. |
+| `error` | `string \| null` | Muestra el error en la tabla, separado del estado vacío. |
 
 Decisiones para eliminar ambigüedades del brief:
 
@@ -47,29 +46,37 @@ Decisiones para eliminar ambigüedades del brief:
 
 ## Funcionalidad 3: comparación de categorías B2B vs. B2C
 
-### `TopCategoriesComparison`
+### `BusinessRevenueComparison`
 
-Estado: componente previsto; los tipos API y de query existen, pero el dashboard aún no implementa esta tabla.
+Existe en [business-revenue-comparison.tsx](../src/components/dashboard/business-revenue-comparison.tsx) y se monta desde `App` cuando `activeView === "revenue-comparison"`.
 
-| Prop | Tipo | Contrato |
+| Prop real | Tipo | Contrato y renderizado condicional |
 | --- | --- | --- |
-| `filters` | `Omit<TopCategoriesParams, "business_type">` | Parámetros comunes a ambos segmentos: operación, límite y rango de fechas. |
-| `categories` | `FacetsResponse["categories"]` | Categorías disponibles; define el orden estable de las filas. |
-| `dataByBusinessType` | `Record<BusinessType, TopCategoriesResponse>` | Arreglos separados para las claves `B2B` y `B2C`. |
-| `loading` | `boolean` | Indica que una o ambas solicitudes comparativas están pendientes. |
-| `error` | `string \| null` | Si falla cualquiera de las dos solicitudes, informa el error y no presenta la comparación como completa. |
-| `onFiltersChange` | `(filters: Omit<TopCategoriesParams, "business_type">) => void` | Emite cambios a los filtros comunes sin cambiar el segmento de cada solicitud. |
+| `dateRange` | `DateRangeFilter` | Rango compartido que se envía en las cuatro solicitudes cuando cada campo tiene valor. |
+| `facets` | `FacetsResponse \| null` | Facetas globales; `null` mientras carga. `facets.categories` filtra categorías devueltas, no separa catálogos por segmento. |
+| `facetsError` | `boolean` | Si es `true`, muestra “Available categories could not be loaded.” |
 
-Reglas de composición:
+### `CategoryRevenueTable` (interno)
 
-1. Ejecutar dos solicitudes a `/api/metrics/categories/top` con los mismos filtros comunes y `business_type: "B2B"` y `business_type: "B2C"`, respectivamente. Aunque el parámetro sea opcional en la API, ambas llamadas deben especificarlo; omitirlo mezcla los segmentos.
-2. Si el brief no expone controles de operación o límite, usar los defaults de API: `operation_type: "outcome"` y `limit: 5`. El rango de fechas común sí se conserva.
-3. `CategoryEntry` no incluye `business_type`; el segmento se obtiene de la clave de `dataByBusinessType`, no se inventa en cada fila.
-4. Emparejar importes por `category`, nunca por índice: cada respuesta se ordena por su propio `total_amount`.
-5. Mostrar una fila por categoría disponible. Si una categoría no aparece en la respuesta top de uno de los segmentos, mostrar `—`, no `0`: puede haber quedado fuera del límite y la API no distingue esa causa de una ausencia de movimientos.
+| Prop real | Tipo | Renderizado condicional |
+| --- | --- | --- |
+| `businessType` | `BusinessType` | Encabezado `B2B` o `B2C`. |
+| `entries` | `TopCategoriesResponse` | Si está vacío, muestra “No income categories available.”; de otro modo, renderiza las entradas recibidas (hasta cinco). |
+| `totalIncome` | `number` | Total del segmento y denominador de “Share of group”. Si vale `0`, la participación muestra `0.0%`. |
+
+### `RevenueComparisonChart` (interno)
+
+Recibe `data: RevenueChartPoint[]`, donde `RevenueChartPoint` es `{ businessType: BusinessType; totalIncome: number }`. Muestra barras si algún total es positivo; si ambos son cero, conserva el área y muestra “No income data available to compare.”
+
+### Flujo de datos y estados de comparación
+
+- `TopCategoriesParams`: dos solicitudes a `/api/metrics/categories/top`, con fechas iguales, `operation_type: "income"`, `limit: 5` y `business_type` distinto (`B2B`/`B2C`).
+- Los totales se calculan con `/api/metrics/b2b` y `/api/metrics/b2c`, ambas con `operation_type=income` y el mismo rango opcional. Cada respuesta es `FinancialMovement[]`; el path selecciona el segmento.
+- `/api/metrics/facets` entrega categorías globales, no catálogos por segmento. Cada endpoint top devuelve como máximo cinco entradas; las tablas no inventan filas para completar cinco.
+- Sin facetas se muestra carga; con error de facetas o de cualquiera de las cuatro solicitudes se muestra error, no una comparación parcial. Si un top está vacío, solo ese panel muestra su estado vacío; el otro conserva sus filas.
+- `CategoryEntry` no incluye `business_type`; el segmento proviene de la solicitud. El porcentaje se calcula como `total_amount / totalIncome * 100`, usando todos los movimientos de ingreso del segmento como denominador, no solo el top-5.
 
 ## Estados comunes
 
-- `loading`: conservar la estructura del componente y mostrar una indicación de carga.
-- `error`: mostrar el error; no reutilizar datos de una solicitud anterior como si correspondieran a los filtros vigentes.
-- vacío: mantener el encabezado/tabla y explicar que no hay resultados para esos filtros.
+- Los errores se distinguen de los arreglos vacíos.
+- Cuando cambian las fechas, la comparación no muestra como vigentes datos cargados para un rango anterior.
