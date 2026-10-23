@@ -9,11 +9,20 @@ interface KPIRowProps {
 }
 
 export function KPIRow({ metrics, loading }: KPIRowProps) {
+  const display = metrics
+    ? {
+        totalIncome: formatCurrency(metrics.totalIncome),
+        totalOutcome: formatCurrency(metrics.totalOutcome),
+        profit: formatCurrency(metrics.profit),
+        profitPercent: formatPercent(metrics.profitPercent),
+      }
+    : null;
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
       <KPICard
         label="Total Income"
-        value={metrics ? formatCurrency(metrics.totalIncome) : '—'}
+        value={display?.totalIncome ?? '—'}
         helperText="Cumulative revenue from all income movements"
         icon={TrendingUp}
         variant="income"
@@ -21,7 +30,7 @@ export function KPIRow({ metrics, loading }: KPIRowProps) {
       />
       <KPICard
         label="Total Outcome"
-        value={metrics ? formatCurrency(metrics.totalOutcome) : '—'}
+        value={display?.totalOutcome ?? '—'}
         helperText="Total expenditure across all categories"
         icon={TrendingDown}
         variant="outcome"
@@ -29,7 +38,7 @@ export function KPIRow({ metrics, loading }: KPIRowProps) {
       />
       <KPICard
         label="Profit"
-        value={metrics ? formatCurrency(metrics.profit) : '—'}
+        value={display?.profit ?? '—'}
         helperText="Net profit — income minus total outcome"
         icon={DollarSign}
         variant="profit"
@@ -37,7 +46,7 @@ export function KPIRow({ metrics, loading }: KPIRowProps) {
       />
       <KPICard
         label="Profit Margin"
-        value={metrics ? formatPercent(metrics.profitPercent) : '—'}
+        value={display?.profitPercent ?? '—'}
         helperText="Profit as a percentage of total income"
         icon={BarChart2}
         variant="profitPercent"
