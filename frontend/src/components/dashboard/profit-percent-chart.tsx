@@ -11,6 +11,7 @@ import {
   ReferenceLine,
   ResponsiveContainer,
 } from 'recharts'
+import React from 'react'
 
 interface ProfitPercentChartProps {
   data: MonthlyDataPoint[]
@@ -29,7 +30,7 @@ interface CustomTooltipProps {
   label?: string
 }
 
-function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
+const CustomTooltip = React.memo(function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
   if (!active || !payload?.length) return null
   const value = payload[0]?.value ?? 0
   return (
@@ -45,7 +46,7 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
       </div>
     </div>
   )
-}
+})
 
 export function ProfitPercentChart({ data, loading }: ProfitPercentChartProps) {
   if (loading) {
@@ -76,8 +77,14 @@ export function ProfitPercentChart({ data, loading }: ProfitPercentChartProps) {
             No data available to display
           </div>
         ) : (
+          <figure aria-label="Profit Margin chart showing monthly profit as percentage of income">
           <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+            <LineChart
+              data={data}
+              margin={{ top: 4, right: 8, left: 0, bottom: 0 }}
+              role="img"
+              aria-label="Line chart: monthly profit margin percentage"
+            >
               <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" strokeOpacity={0.6} />
               <XAxis
                 dataKey="month"
@@ -106,6 +113,7 @@ export function ProfitPercentChart({ data, loading }: ProfitPercentChartProps) {
               />
             </LineChart>
           </ResponsiveContainer>
+          </figure>
         )}
       </CardContent>
     </Card>
